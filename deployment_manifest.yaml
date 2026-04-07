@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatsentry-inference-api
+  labels:
+    app: chatsentry
+    component: serving
+spec:
+  replicas: 2  # Scaled for high availability during peak load (100 users)
+  selector:
+    matchLabels:
+      app: chatsentry
+  template:
+    metadata:
+      labels:
+        app: chatsentry
+    spec:
+      containers:
+      - name: sentry-api
+        # Replace with your actual Docker Hub image path
+        image: purvansh17/chatsentry:latest 
+        ports:
+        - containerPort: 8000
+        
+        # RESOURCE ALLOCATION
+        resources:
+          requests:
+            memory: "5Gi"    # Guarantees the 4.18GiB needed for the BERT model
+            cpu: "2000m"     # Requests 2 vCPUs
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+            
+        livenessProbe:
+          httpGet:
+            path: /moderate
+            port: 8000
+          initialDelaySeconds: 60 # BERT takes time to load into RAM
+          periodSeconds: 10
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatsentry-service
+spec:
+  selector:
+    app: chatsentry
+  ports:
+    - protocol: TCP
+      port: 80          # Publicly exposed port
+      targetPort: 8000  # Port inside your Docker container
+  type: LoadBalancer
